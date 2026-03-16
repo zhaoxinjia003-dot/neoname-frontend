@@ -396,64 +396,21 @@ async function onSubmit() {
     return
   }
 
-  // 2. 检查用户状态
   try {
-    let token = uni.getStorageSync('access_token')
-    if (!token) {
-      // 获取微信登录凭证
-      const loginResult = await new Promise((resolve, reject) => {
-        uni.login({
-          provider: 'weixin',
-          success: resolve,
-          fail: reject
-        })
-      })
+    // 2. 确保登录（获取有效 token）
+    await ensureLogin()
 
-      // 使用真实的微信 code 登录
-      const loginRes = await request({
-        url: '/api/auth/wechat/login',
-        method: 'POST',
-        data: { code: loginResult.code },
-      })
-      token = loginRes.access_token
-      setToken(token)
+    // 3. 确保授权（检查授权状态和配额）
+    const canProceed = await ensureAuthorization()
+    if (!canProceed) {
+      return  // 用户取消授权或配额用完
     }
 
-    const statusRes = await request({
-      url: '/api/user/check-status',
-      method: 'GET'
-    })
-
-    // 3. 未授权，显示授权弹窗
-    if (!statusRes.authorized) {
-      showAuthModal.value = true
-      return
-    }
-
-    // 4. 次数用完，显示提示
-    if (statusRes.remaining_quota <= 0) {
-      uni.showToast({
-        title: '今日生成次数已用完，明天再来吧',
-        icon: 'none',
-        duration: 2000
-      })
-      return
-    }
-
-    // 5. 显示剩余次数提示（剩余1次时）
-    if (statusRes.remaining_quota === 1) {
-      uni.showToast({
-        title: '今日还剩 1 次机会',
-        icon: 'none',
-        duration: 1500
-      })
-    }
-
-    // 6. 继续生成名字
+    // 4. 生成名字
     await generateNames()
   } catch (e) {
-    console.error('检查状态失败:', e)
-    uni.showToast({ title: e.message || '检查失败', icon: 'none' })
+    console.error('提交失败:', e)
+    uni.showToast({ title: e.message || '操作失败，请重试', icon: 'none' })
   }
 }
 
