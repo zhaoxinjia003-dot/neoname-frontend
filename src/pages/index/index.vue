@@ -328,7 +328,7 @@ async function ensureAuthorization() {
         // 等待用户授权完成
         return new Promise((resolve) => {
           // 使用全局变量等待授权完成
-          window._authSuccessResolve = resolve
+          globalThis._authSuccessResolve = resolve
         })
       }
 
@@ -517,9 +517,9 @@ async function onAuthSuccess() {
   showAuthModal.value = false
 
   // 如果有等待的 Promise，resolve 它
-  if (window._authSuccessResolve) {
-    window._authSuccessResolve(true)
-    window._authSuccessResolve = null
+  if (globalThis._authSuccessResolve) {
+    globalThis._authSuccessResolve(true)
+    globalThis._authSuccessResolve = null
   }
 }
 </script>
