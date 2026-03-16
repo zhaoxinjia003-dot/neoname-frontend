@@ -307,6 +307,84 @@ async function ensureLogin() {
   }
 }
 
+// 确保用户已授权（处理 token 过期、未授权、配额检查）
+async function ensureAuthorization() {
+  let retryCount = 0
+  const MAX_RETRY = 1
+
+  while (retryCount <= MAX_RETRY) {
+    try {
+      // 调用 check-status 检查授权状态
+      const statusRes = await request({
+        url: '/api/user/check-status',
+        method: 'GET'
+      })
+
+      // 检查是否已授权
+      if (!statusRes.authorized) {
+        // 未授权，显示授权弹窗
+        showAuthModal.value = true
+
+        // 等待用户授权完成
+        return new Promise((resolve) => {
+          // 使用全局变量等待授权完成
+          window._authSuccessResolve = resolve
+        })
+      }
+
+      // 检查配额
+      if (statusRes.remaining_quota <= 0) {
+        uni.showToast({
+          title: '今日生成次数已用完，明天再来吧',
+          icon: 'none',
+          duration: 2000
+        })
+        return false
+      }
+
+      // 显示剩余次数提示（剩余1次时）
+      if (statusRes.remaining_quota === 1) {
+        uni.showToast({
+          title: '今日还剩 1 次机会',
+          icon: 'none',
+          duration: 1500
+        })
+      }
+
+      // 授权成功且有配额
+      return true
+
+    } catch (e) {
+      console.error('检查状态失败:', e)
+
+      // 检测 401 错误（token 过期）
+      if (e.statusCode === 401 && retryCount < MAX_RETRY) {
+        console.log('Token 过期，重新登录...')
+
+        // 清除本地 token
+        uni.removeStorageSync('access_token')
+
+        // 重新登录
+        await ensureLogin()
+
+        // 增加重试计数，继续循环
+        retryCount++
+        continue
+      }
+
+      // 其他错误或重试次数用完
+      if (retryCount >= MAX_RETRY) {
+        uni.showToast({ title: '登录失败，请稍后重试', icon: 'none' })
+      } else {
+        uni.showToast({ title: e.message || '检查失败', icon: 'none' })
+      }
+      return false
+    }
+  }
+
+  return false
+}
+
 async function onSubmit() {
   // 1. 表单验证
   if (!form.surname.trim()) {
@@ -437,8 +515,12 @@ async function generateNames() {
 // 授权成功回调
 async function onAuthSuccess() {
   showAuthModal.value = false
-  // 重新提交生成
-  await onSubmit()
+
+  // 如果有等待的 Promise，resolve 它
+  if (window._authSuccessResolve) {
+    window._authSuccessResolve(true)
+    window._authSuccessResolve = null
+  }
 }
 </script>
 
