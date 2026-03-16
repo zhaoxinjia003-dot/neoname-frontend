@@ -1,4 +1,4 @@
-const BASE_URL = 'http://localhost:8000'
+const BASE_URL = 'http://localhost:20261'
 
 function getToken() {
   return uni.getStorageSync('access_token') || ''
@@ -20,7 +20,10 @@ export function request(options) {
         if (res.statusCode >= 200 && res.statusCode < 300) {
           resolve(res.data)
         } else {
-          reject(new Error(res.data?.detail || '请求失败'))
+          const error = new Error(res.data?.detail || '请求失败')
+          error.statusCode = res.statusCode
+          error.data = res.data
+          reject(error)
         }
       },
       fail: reject,
