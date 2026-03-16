@@ -271,6 +271,42 @@ function onMotherDateChange(e) {
   form.mother_birth_date = `${y}-${m}-${d}`
 }
 
+// 确保有有效的登录 token
+async function ensureLogin() {
+  let token = uni.getStorageSync('access_token')
+
+  // 如果已有 token，假设有效（后续 API 会验证）
+  if (token) {
+    return
+  }
+
+  // 无 token，调用微信登录
+  try {
+    // 获取微信登录凭证
+    const loginResult = await new Promise((resolve, reject) => {
+      uni.login({
+        provider: 'weixin',
+        success: resolve,
+        fail: reject
+      })
+    })
+
+    // 使用微信 code 登录后端
+    const loginRes = await request({
+      url: '/api/auth/wechat/login',
+      method: 'POST',
+      data: { code: loginResult.code },
+    })
+
+    // 保存 token
+    token = loginRes.access_token
+    setToken(token)
+  } catch (e) {
+    console.error('微信登录失败:', e)
+    throw new Error('微信登录失败，请重试')
+  }
+}
+
 async function onSubmit() {
   // 1. 表单验证
   if (!form.surname.trim()) {
