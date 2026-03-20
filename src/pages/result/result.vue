@@ -125,6 +125,17 @@
 
     <!-- 底部操作 -->
     <view class="bottom-action" v-if="names.length">
+      <!-- 查看上一个按钮 -->
+      <button
+        class="action-btn secondary"
+        :class="{ disabled: isTransitioning || isFirstName || names.length <= 1 }"
+        :disabled="isTransitioning || isFirstName || names.length <= 1"
+        @click="onPrev"
+      >
+        <text>{{ isFirstName || names.length <= 1 ? '← 已开始' : '← 查看上一个' }}</text>
+      </button>
+
+      <!-- 查看下一个按钮 -->
       <button
         class="action-btn secondary"
         :class="{ disabled: isTransitioning || isLastName || names.length <= 1 }"
@@ -133,9 +144,15 @@
       >
         <text>{{ buttonText }}</text>
       </button>
+
       <button class="action-btn primary" open-type="share">
         <text>📤 分享好友</text>
       </button>
+    </view>
+
+    <!-- 浏览完全部后的提示 -->
+    <view class="tip-toast" v-if="showTip">
+      <text>记录不存档，请分享好友保存</text>
     </view>
 
     <!-- 返回按钮 -->
@@ -158,7 +175,9 @@ const collected = ref(false)
 // 新增状态 - 控制动画和按钮
 const isTransitioning = ref(false)     // 是否正在过渡动画中
 const isLastName = ref(false)          // 是否已浏览到最后一个
+const isFirstName = ref(true)          // 是否在第一个
 const cardAnimationClass = ref('')     // 卡片动画类名 ('', 'fading-out', 'fading-in')
+const showTip = ref(false)             // 是否显示提示
 
 // 计算属性 - 按钮文字
 const buttonText = computed(() => {
@@ -236,6 +255,37 @@ function onCollect() {
   uni.showToast({ title: '已收藏', icon: 'none' })
 }
 
+// 点击查看上一个
+function onPrev() {
+  // 防止重复点击
+  if (isTransitioning.value || isFirstName.value || names.value.length <= 1) {
+    return
+  }
+
+  // 开始过渡动画
+  isTransitioning.value = true
+  cardAnimationClass.value = 'fading-out'
+
+  // 2秒后开始渐显新卡片
+  setTimeout(() => {
+    if (currentIndex.value > 0) {
+      currentIndex.value--
+    }
+    isFirstName.value = currentIndex.value === 0
+    isLastName.value = false
+    showTip.value = false
+
+    // 开始渐显动画
+    cardAnimationClass.value = 'fading-in'
+
+    // 再过2秒后动画结束
+    setTimeout(() => {
+      cardAnimationClass.value = ''
+      isTransitioning.value = false
+    }, 2000)
+  }, 2000)
+}
+
 // 点击查看下一个
 function onNext() {
   // 防止重复点击
@@ -252,8 +302,11 @@ function onNext() {
     // 切换到下一个名字
     if (currentIndex.value < names.value.length - 1) {
       currentIndex.value++
+      isFirstName.value = false
     } else {
       isLastName.value = true
+      // 浏览完全部后显示提示
+      showTip.value = true
     }
 
     // 开始渐显动画
@@ -500,21 +553,22 @@ $shadow-card: 0 4rpx 24rpx rgba(45, 38, 32, 0.06);
 }
 
 .section-label {
-  font-size: 24rpx;
-  color: $text-primary;
-  font-weight: 600;
-  letter-spacing: 0.15em;
+  font-size: 28rpx;
+  color: $accent;
+  font-weight: 700;
+  letter-spacing: 0.1em;
   margin-bottom: 16rpx;
   display: flex;
   align-items: center;
   gap: 12rpx;
+  padding: 12rpx 16rpx;
+  background: linear-gradient(90deg, rgba($accent, 0.08) 0%, transparent 100%);
+  border-radius: 0 16rpx 16rpx 0;
+  border-left: 6rpx solid $accent;
 
   &::before {
     content: '';
-    width: 6rpx;
-    height: 24rpx;
-    background: linear-gradient(180deg, $accent 0%, $gold 100%);
-    border-radius: 3rpx;
+    display: none;
   }
 }
 
@@ -527,8 +581,12 @@ $shadow-card: 0 4rpx 24rpx rgba(45, 38, 32, 0.06);
 
 // 详情区域
 .detail-section {
-  padding: 24rpx 0;
-  border-bottom: 1rpx solid $border;
+  padding: 24rpx;
+  margin: 16rpx 0;
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 16rpx;
+  border: 1rpx solid rgba($gold-light, 0.3);
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.03);
 }
 
 .char-list {
@@ -798,5 +856,32 @@ $shadow-card: 0 4rpx 24rpx rgba(45, 38, 32, 0.06);
   background: #e0e0e0;
   color: #999;
   box-shadow: none;
+}
+
+// 提示气泡
+.tip-toast {
+  position: fixed;
+  bottom: 220rpx;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(45, 38, 32, 0.85);
+  color: #fff;
+  padding: 16rpx 32rpx;
+  border-radius: 32rpx;
+  font-size: 24rpx;
+  box-shadow: 0 8rpx 24rpx rgba(0, 0, 0, 0.15);
+  z-index: 100;
+  animation: fadeInUp 0.3s ease;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(20rpx);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
 }
 </style>
