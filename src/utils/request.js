@@ -4,6 +4,10 @@ function getToken() {
   return uni.getStorageSync('access_token') || ''
 }
 
+export function clearToken() {
+  uni.removeStorageSync('access_token')
+}
+
 export function request(options) {
   const token = getToken()
   return new Promise((resolve, reject) => {
@@ -20,6 +24,10 @@ export function request(options) {
         if (res.statusCode >= 200 && res.statusCode < 300) {
           resolve(res.data)
         } else {
+          // 如果是 401，清除本地 token
+          if (res.statusCode === 401) {
+            clearToken()
+          }
           const error = new Error(res.data?.detail || '请求失败')
           error.statusCode = res.statusCode
           error.data = res.data

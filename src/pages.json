@@ -1,1 +1,1 @@
-{"pages":[{"path":"pages/index/index","style":{"navigationBarTitleText":"新生儿起名"}},{"path":"pages/result/result","style":{"navigationBarTitleText":"起名结果"}}],"globalStyle":{"navigationBarTextStyle":"black","navigationBarTitleText":"新生儿起名","backgroundColor":"#f7f4f0"}}
+{"pages":[{"path":"pages/index/index","style":{"navigationBarTitleText":"新生儿起名"}},{"path":"pages/result/result","style":{"navigationBarTitleText":"起名结果"}}],"globalStyle":{"navigationBarTextStyle":"black","navigationBarTitleText":"新生儿起名","backgroundColor":"#f7f4f0","navigationBarBackgroundColor":"#f7f4f0"}}

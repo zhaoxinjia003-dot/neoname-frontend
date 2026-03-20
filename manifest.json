@@ -1,9 +1,9 @@
 {
-  "name": "新生儿起名",
+  "name": "国学起名-婴儿",
   "appid": "__UNI__NEONAME",
-  "description": "新生儿起名小程序",
+  "description": "新生儿起名小程序，融合传统八字五行与各地民俗，为宝宝提供起名参考服务。",
   "mp-weixin": {
-    "appid": "",
+    "appid": "wxfc30f9047c56831c",
     "setting": { "urlCheck": false }
   }
 }

@@ -2,9 +2,7 @@
 </script>
 
 <template>
-  <view id="app">
-    <page-meta :root-font-size="16" />
-  </view>
+  <view id="app"></view>
 </template>
 
 <style>

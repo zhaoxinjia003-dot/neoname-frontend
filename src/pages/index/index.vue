@@ -12,21 +12,23 @@
       />
     </view>
 
-    <!-- 为何选择我们：参考 ai-trust-section -->
+    <!-- 为何选择我们：自动滚动卡片 -->
     <view class="trust-section">
       <view class="trust-title-wrap">
         <view class="trust-title-bar" />
         <text class="trust-title">为何选择我们</text>
       </view>
-      <view class="trust-grid">
-        <view v-for="item in trustItems" :key="item.title" class="trust-card">
-          <view class="trust-card-icon-wrap">
-            <text class="trust-card-icon">{{ item.icon }}</text>
+      <swiper class="trust-swiper" :autoplay="true" :interval="3500" :circular="true" :indicator-dots="false">
+        <swiper-item v-for="item in trustItems" :key="item.title">
+          <view class="trust-card">
+            <view class="trust-card-icon-wrap">
+              <text class="trust-card-icon">{{ item.icon }}</text>
+            </view>
+            <text class="trust-card-title">{{ item.title }}</text>
+            <text class="trust-card-desc">{{ item.desc }}</text>
           </view>
-          <text class="trust-card-title">{{ item.title }}</text>
-          <text class="trust-card-desc">{{ item.desc }}</text>
-        </view>
-      </view>
+        </swiper-item>
+      </swiper>
     </view>
 
     <!-- 宝宝信息表单：参考 naming-form -->
@@ -112,7 +114,21 @@
         </view>
       </view>
       <view class="form-footer">
-        <button class="btn-submit" @click="onSubmit">
+        <!-- 已授权时使用普通按钮 -->
+        <button
+          v-if="isAuthorized"
+          class="btn-submit"
+          @click="onSubmit"
+        >
+          <text class="btn-submit-text">生成好名字</text>
+        </button>
+        <!-- 未授权时使用微信授权按钮 -->
+        <button
+          v-else
+          class="btn-submit"
+          open-type="chooseAvatar"
+          @chooseavatar="onChooseAvatar"
+        >
           <text class="btn-submit-text">生成好名字</text>
         </button>
       </view>
@@ -160,26 +176,35 @@
         </picker-view>
       </view>
     </view>
-
-    <!-- 授权弹窗 -->
-    <AuthModal
-      :visible="showAuthModal"
-      @close="showAuthModal = false"
-      @success="onAuthSuccess"
-    />
   </view>
 </template>
 
 <script setup>
 import { request, setToken } from '../../utils/request.js'
-import { reactive, ref } from 'vue'
-import AuthModal from '../../components/AuthModal.vue'
+import { reactive, ref, onMounted } from 'vue'
+
+// 用户是否已授权
+const isAuthorized = ref(false)
+
+// 页面加载时检查授权状态
+onMounted(async () => {
+  try {
+    const statusRes = await request({
+      url: '/api/user/check-status',
+      method: 'GET'
+    })
+    isAuthorized.value = statusRes.authorized
+  } catch (e) {
+    // 检查失败，假设未授权
+    isAuthorized.value = false
+  }
+})
 
 const trustItems = [
-  { icon: '◆', title: '顶尖 AI 大模型', desc: 'AI 深度分析汉字音形义' },
-  { icon: '◇', title: '各地民俗融合', desc: '覆盖30+省市起名习俗' },
-  { icon: '◆', title: '国学命理精研', desc: '八字五行+周易卦象' },
-  { icon: '◇', title: '智能精准推荐', desc: '亿级语料多维评分' },
+  { icon: '🤖', title: 'AI 智能分析', desc: '深度学习汉字音形义，智能匹配八字命理' },
+  { icon: '📚', title: '国学经典', desc: '融合唐诗宋词周易八卦，传统智慧结晶' },
+  { icon: '🌍', title: '民俗大数据', desc: '收录全国30+省市取名习俗，万名用户验证' },
+  { icon: '✨', title: '寓意深远', desc: '音韵优美寓意吉祥，助力宝宝美好未来' },
 ]
 
 const showParents = ref(false)
@@ -227,6 +252,16 @@ function onDatePickerChange(e) {
 }
 
 function closeDatePicker() {
+  // 确认选择，应用当前日期
+  const [yIdx, mIdx, dIdx] = datePickerValue.value
+  if (yIdx !== undefined && mIdx !== undefined && dIdx !== undefined) {
+    const y = years[yIdx]
+    if (y) {
+      const m = String(mIdx + 1).padStart(2, '0')
+      const d = String(dIdx + 1).padStart(2, '0')
+      form[currentPickerField.value] = `${y}-${m}-${d}`
+    }
+  }
   showDatePicker.value = false
 }
 
@@ -248,8 +283,6 @@ const form = reactive({
   father_birth_date: '',
   mother_birth_date: '',
 })
-
-const showAuthModal = ref(false)  // 是否显示授权弹窗
 
 function onDateChange(e) {
   form.birth_date = e.detail.value
@@ -274,6 +307,7 @@ function onMotherDateChange(e) {
 // 确保有有效的登录 token
 async function ensureLogin() {
   let token = uni.getStorageSync('access_token')
+  console.log('ensureLogin - 当前 token:', token ? token.substring(0, 20) + '...' : 'null')
 
   // 如果已有 token，假设有效（后续 API 会验证）
   if (token) {
@@ -283,6 +317,7 @@ async function ensureLogin() {
   // 无 token，调用微信登录
   try {
     // 获取微信登录凭证
+    console.log('开始微信登录...')
     const loginResult = await new Promise((resolve, reject) => {
       uni.login({
         provider: 'weixin',
@@ -290,16 +325,20 @@ async function ensureLogin() {
         fail: reject
       })
     })
+    console.log('uni.login result:', loginResult)
 
     // 使用微信 code 登录后端
+    console.log('调用后端登录 API, code:', loginResult.code)
     const loginRes = await request({
       url: '/api/auth/wechat/login',
       method: 'POST',
       data: { code: loginResult.code },
     })
+    console.log('登录 API 返回:', loginRes)
 
     // 保存 token
     token = loginRes.access_token
+    console.log('保存 token:', token.substring(0, 20) + '...')
     setToken(token)
   } catch (e) {
     console.error('微信登录失败:', e)
@@ -307,84 +346,7 @@ async function ensureLogin() {
   }
 }
 
-// 确保用户已授权（处理 token 过期、未授权、配额检查）
-async function ensureAuthorization() {
-  let retryCount = 0
-  const MAX_RETRY = 1
-
-  while (retryCount <= MAX_RETRY) {
-    try {
-      // 调用 check-status 检查授权状态
-      const statusRes = await request({
-        url: '/api/user/check-status',
-        method: 'GET'
-      })
-
-      // 检查是否已授权
-      if (!statusRes.authorized) {
-        // 未授权，显示授权弹窗
-        showAuthModal.value = true
-
-        // 等待用户授权完成
-        return new Promise((resolve) => {
-          // 使用全局变量等待授权完成
-          globalThis._authSuccessResolve = resolve
-        })
-      }
-
-      // 检查配额
-      if (statusRes.remaining_quota <= 0) {
-        uni.showToast({
-          title: '今日生成次数已用完，明天再来吧',
-          icon: 'none',
-          duration: 2000
-        })
-        return false
-      }
-
-      // 显示剩余次数提示（剩余1次时）
-      if (statusRes.remaining_quota === 1) {
-        uni.showToast({
-          title: '今日还剩 1 次机会',
-          icon: 'none',
-          duration: 1500
-        })
-      }
-
-      // 授权成功且有配额
-      return true
-
-    } catch (e) {
-      console.error('检查状态失败:', e)
-
-      // 检测 401 错误（token 过期）
-      if (e.statusCode === 401 && retryCount < MAX_RETRY) {
-        console.log('Token 过期，重新登录...')
-
-        // 清除本地 token
-        uni.removeStorageSync('access_token')
-
-        // 重新登录
-        await ensureLogin()
-
-        // 增加重试计数，继续循环
-        retryCount++
-        continue
-      }
-
-      // 其他错误或重试次数用完
-      if (retryCount >= MAX_RETRY) {
-        uni.showToast({ title: '登录失败，请稍后重试', icon: 'none' })
-      } else {
-        uni.showToast({ title: e.message || '检查失败', icon: 'none' })
-      }
-      return false
-    }
-  }
-
-  return false
-}
-
+// 提交表单（表单验证）
 async function onSubmit() {
   // 1. 表单验证
   if (!form.surname.trim()) {
@@ -400,17 +362,89 @@ async function onSubmit() {
     // 2. 确保登录（获取有效 token）
     await ensureLogin()
 
-    // 3. 确保授权（检查授权状态和配额）
-    const canProceed = await ensureAuthorization()
-    if (!canProceed) {
-      return  // 用户取消授权或配额用完
+    // 3. 检查配额
+    const statusRes = await request({
+      url: '/api/user/check-status',
+      method: 'GET'
+    })
+
+    if (statusRes.remaining_quota <= 0) {
+      uni.showToast({
+        title: '今日生成次数已用完，明天再来吧',
+        icon: 'none',
+        duration: 2000
+      })
+      return
     }
 
-    // 4. 生成名字
+    // 显示剩余次数提示（剩余1次时）
+    if (statusRes.remaining_quota === 1) {
+      uni.showToast({
+        title: '今日还剩 1 次机会',
+        icon: 'none',
+        duration: 1500
+      })
+    }
+
+    // 4. 已授权，直接生成名字
     await generateNames()
   } catch (e) {
     console.error('提交失败:', e)
+
+    // 特殊处理 429 错误
+    if (e.statusCode === 429 || (e.message && e.message.includes('已用完'))) {
+      uni.showToast({
+        title: '今日生成次数已用完，明天再来吧',
+        icon: 'none',
+        duration: 2000
+      })
+      return
+    }
+
     uni.showToast({ title: e.message || '操作失败，请重试', icon: 'none' })
+  }
+}
+
+// 微信头像选择回调（触发授权）
+async function onChooseAvatar(e) {
+  const { avatarUrl } = e.detail
+  console.log('选择头像:', avatarUrl)
+
+  if (!avatarUrl) {
+    uni.showToast({ title: '未选择头像', icon: 'none' })
+    return
+  }
+
+  try {
+    // 先确保登录
+    console.log('开始登录...')
+    await ensureLogin()
+
+    // 检查 token 是否保存成功
+    const savedToken = uni.getStorageSync('access_token')
+    console.log('登录后 token:', savedToken ? savedToken.substring(0, 20) + '...' : 'null')
+
+    // 保存头像到后端
+    console.log('开始授权...')
+    await request({
+      url: '/api/user/authorize',
+      method: 'POST',
+      data: {
+        avatar_url: avatarUrl
+      }
+    })
+
+    uni.showToast({ title: '授权成功', icon: 'success' })
+
+    // 标记已授权
+    isAuthorized.value = true
+
+    // 授权成功后，直接生成名字（配额已在 onSubmit 中检查过）
+    await generateNames()
+  } catch (e) {
+    console.error('授权失败:', e)
+    console.error('错误详情:', e.statusCode, e.message)
+    uni.showToast({ title: e.message || '授权失败，请重试', icon: 'none' })
   }
 }
 
@@ -518,14 +552,14 @@ $radius: 24rpx;
   background: $card;
   border: 1rpx solid $border;
   border-radius: 24rpx;
-  padding: 16rpx;
+  padding: 24rpx;
   box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.04);
 }
 .trust-title-wrap {
   display: flex;
   align-items: center;
   gap: 8rpx;
-  margin-bottom: 12rpx;
+  margin-bottom: 20rpx;
 }
 .trust-title-bar {
   width: 6rpx;
@@ -534,47 +568,51 @@ $radius: 24rpx;
   background: $primary;
 }
 .trust-title {
-  font-size: 26rpx;
+  font-size: 28rpx;
   font-weight: 600;
   color: $foreground;
   letter-spacing: 0.02em;
 }
-.trust-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12rpx;
+.trust-swiper {
+  height: 220rpx;
 }
 .trust-card {
-  background: rgba($secondary, 0.6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba($primary, 0.08) 0%, rgba($secondary, 0.6) 100%);
   border: 1rpx solid rgba($border, 0.6);
-  border-radius: 16rpx;
-  padding: 12rpx;
+  border-radius: 20rpx;
+  padding: 24rpx;
+  height: 100%;
+  box-sizing: border-box;
 }
 .trust-card-icon-wrap {
-  width: 32rpx;
-  height: 32rpx;
-  border-radius: 8rpx;
-  background: rgba($primary, 0.1);
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: 20rpx;
+  background: linear-gradient(135deg, rgba($primary, 0.15) 0%, rgba($primary, 0.05) 100%);
   align-items: center;
   justify-content: center;
   display: flex;
-  margin-bottom: 6rpx;
+  margin-bottom: 16rpx;
 }
 .trust-card-icon {
-  font-size: 18rpx;
-  color: $primary;
+  font-size: 40rpx;
 }
 .trust-card-title {
-  font-size: 22rpx;
+  font-size: 28rpx;
   font-weight: 600;
   color: $foreground;
   display: block;
-  margin-bottom: 2rpx;
+  margin-bottom: 8rpx;
 }
 .trust-card-desc {
-  font-size: 18rpx;
+  font-size: 22rpx;
   color: $muted;
-  line-height: 1.3;
+  line-height: 1.4;
+  text-align: center;
 }
 
 /* 表单卡片 */
